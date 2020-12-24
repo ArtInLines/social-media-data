@@ -1,3 +1,5 @@
+# Work in Progress
+
 ## Code zum Forschungsprojekt:
 
 ## Analyse rechter Strukturen in sozialen Medien
@@ -33,7 +35,8 @@ einen Datensatz gekürzt werden, da zwei Soziale Medien betrachtet werden, deren
 
 ## Twitter
 
-Twitters API bietet Daten zu einzelnen Nutzern, deren zugehörigen "Tweets" (wobei nur die neuesten ~3500 von Twitter weitergegeben werden), deren Freunde, deren Followers, sowie deren ge-likte Tweets. D
+Twitters API bietet Daten zu einzelnen Nutzern, deren zugehörigen "Tweets" (wobei nur die neuesten ~3500 von Twitter weitergegeben werden), deren Freunde, deren Followers, sowie deren ge-likte Tweets.
+D
 
 ---
 
