@@ -1,0 +1,16 @@
+{
+	"name": "social-media-data",
+	"version": "1.0.0",
+	"description": "",
+	"main": "index.js",
+	"scripts": {
+		"start": "node --max-old-space-size=4096 index.js",
+		"all": "node --max-old-space-size=4096 index.js && node --max-old-space-size=4096 csvMatrix.js"
+	},
+	"author": "ArtInLines",
+	"license": "MIT",
+	"dependencies": {
+		"dotenv": "^8.2.0",
+		"twitter": "^1.7.1"
+	}
+}
