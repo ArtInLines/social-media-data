@@ -2,6 +2,13 @@
  * A Twitter ID for either a User, a Tweet or something else. These IDs are stored as `strings`, may be converted into a `bigint` too, though.
  * @typedef {string|bigint} ID
  */
+const statistics = {
+	reqNums: { all: 0, allWithoutRateLimit: 0, resolved: 0 },
+	userNums: { all: 0, lookedAt: 0, tooBig: 0, inactive: 0, protected: 0 },
+	// ADD MORE
+};
+module.exports = { reqNums: statistics.reqNums };
+
 require('dotenv').config({ path: `${__dirname}/config.env` });
 const fs = require('fs');
 const { readFile } = require('fs/promises');
@@ -61,6 +68,8 @@ async function main() {
 	usersStream.end('}');
 	console.log('Done with getting user data');
 	logMemory();
+	statistics.userNums.lookedAt = users.size;
+	statistics.userNums.all = users.size + notLookedAtUsers.size;
 
 	const fileContents = stringHelper.replaceAt(await readFile(`${lookedAtUsersPath}`, { encoding: 'utf-8' }), -2, '');
 	fs.writeFileSync(lookedAtUsersPath, fileContents);
@@ -194,8 +203,13 @@ function createUser(userObj = null, userID = userObj.id_str, username = userObj.
 		user.favourites_count = userObj.favourites_count;
 		// Check different cases for `to_look`:
 		if (!lookedAt) {
-			if (user.statuses_count <= TWEETS_MIN) user.to_look = USERS_LOOK.INACTIVE;
-			else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) user.to_look = USERS_LOOK.TOO_BIG;
+			if (user.statuses_count <= TWEETS_MIN) {
+				user.to_look = USERS_LOOK.INACTIVE;
+				statistics.userNums.inactive++;
+			} else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) {
+				user.to_look = USERS_LOOK.TOO_BIG;
+				statistics.userNums.tooBig++;
+			}
 		}
 	}
 	if (!users.has(userID)) notLookedAtUsers.set(userID, { name: username, to_look: user.to_look });
@@ -227,18 +241,20 @@ async function addUsers(arr) {
 		id = String(id);
 		if (!users.has(id)) newUsers.push(id);
 	}
-	for (let x = 0, len = newUsers.length; x < len; x += 99) {
-		let stringifiedArr = '';
-		for (let i = 0; i < 99 || i + x < len; i++) {
-			if (i >= 99 || i + x >= len) break;
-			const temp = newUsers.shift();
-			if (temp === undefined) break;
+	let stringifiedArr = '';
+	for (let i = 0, len = newUsers.length; i < len; i++) {
+		const temp = newUsers.shift();
+		if (temp) {
 			stringifiedArr += temp;
-			if (i < len - 1) stringifiedArr += ',';
-		}
-		if (!stringifiedArr) continue;
+			if (i % 99 !== 0 || i !== len - 1) {
+				stringifiedArr += ',';
+				continue;
+			}
+		} else if (temp === false) statistics.userNums.protected++;
+
 		let resArr = await twitterReq('users/lookup', { user_id: stringifiedArr }, 'user_id_list');
-		for (let i = 0; i < resArr.length; i++) createUser(resArr[i]);
+		for (let j = 0; j < resArr.length; j++) createUser(resArr[j]);
+		stringifiedArr = '';
 	}
 }
 

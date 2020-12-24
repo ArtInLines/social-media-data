@@ -12,14 +12,13 @@ const client = new Twitter({
 });
 /** Amount of maximum response objects by Twitter for `cursor` Requests */
 const COUNT = 1000;
-const reqNums = { all: 0, allWithoutRateLimit: 0, resolved: 0 };
+const { reqNums } = require('./../index');
 
 module.exports = {
 	getCursoredList,
 	getFullList,
 	twitterReq,
 	rateLimited,
-	reqNums,
 };
 
 /**
