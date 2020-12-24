@@ -132,6 +132,85 @@ async function getFriendsAndFollowers(userID, username, userStream) {
 	return await addAllUsers(friends, followers);
 }
 
+/**
+ * Adds Users indicated by their IDs from endlessly many arrays via `addUsers`.
+ * @param  {...Array<ID>} args Arrays of User IDs
+ */
+async function addAllUsers(...args) {
+	for (let i = 0; i < args.length; i++) {
+		await addUsers(args[i]);
+	}
+	return args;
+}
+
+/**
+ * Goes through Arrays of UserIDs, checking if the User has been stored in `users` yet. If not, it will asynchronously request boilerplate data of that User from the Twitter API. Users are added to `usersToLookAt`, if `toLookAt` is true.
+ * @async
+ * @param  {ID[]} arr An Array containing user IDs
+ */
+async function addUsers(arr) {
+	let newUsers = [];
+	console.log(`Adding ${arr.length} Users`);
+	for (let i = 0; i < arr.length; i++) {
+		let id = arr[i];
+		if (!id) continue;
+		id = String(id);
+		if (!users.has(id)) newUsers.push(id);
+	}
+	let stringifiedArr = '';
+	for (let i = 1, len = newUsers.length; i <= len; i++) {
+		const temp = newUsers.shift();
+		if (temp) {
+			stringifiedArr += temp;
+			if (i % 99 !== 0 || i >= len - 1) {
+				stringifiedArr += ',';
+				continue;
+			}
+		} else if (temp === false) {
+			statistics.userNums.protected++;
+			continue;
+		}
+
+		console.log(`Looking up ${i / Math.ceil(i / 99)} new Users`);
+		let resArr = await twitterReq('users/lookup', { user_id: stringifiedArr }, 'user_id_list');
+		for (let j = 0; j < resArr.length; j++) createUser(resArr[j]);
+		stringifiedArr = '';
+	}
+}
+
+/**
+ * Creates a new User Object and returns it and a stringified version of it. Adds the stringified user object to `notLookedAtUsers` Array.
+ * @returns {User|ID} Returns an Array with two elements. The first element is the User Object, the second element is the same object stringified, with an ending ',', ready for writing into a file.
+ * @param {?TwitterUserObj} userObj User Object, that can be retrieved from Twitter's API or `null`. If `null`, `userID` and `username` may not be omitted.
+ * @param {Boolean} [lookedAt=false] Indicates whether the user was looked at in the `getDataOfUser` function. Defaults to `false`.
+ */
+function createUser(userObj = null, userID = userObj.id_str, username = userObj.screen_name, lookedAt = false) {
+	const user = { id: userID, name: username };
+	if (lookedAt) user.to_look = USERS_LOOK.LOOKED_AT;
+	else user.to_look = USERS_LOOK.TO_LOOK;
+	if (userObj) {
+		user.bioURL = userObj.url;
+		user.desc = userObj.description;
+		user.created_at = userObj.created_at;
+		user.friends_count = userObj.friends_count;
+		user.followers_count = userObj.followers_count;
+		user.tweets_counts = userObj.statuses_count;
+		user.favourites_count = userObj.favourites_count;
+		// Check different cases for `to_look`:
+		if (!lookedAt) {
+			if (user.statuses_count <= TWEETS_MIN) {
+				user.to_look = USERS_LOOK.INACTIVE;
+				statistics.userNums.inactive++;
+			} else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) {
+				user.to_look = USERS_LOOK.TOO_BIG;
+				statistics.userNums.tooBig++;
+			}
+		}
+	}
+	if (!users.has(userID)) notLookedAtUsers.set(userID, { name: username, to_look: user.to_look });
+	return [user, stringifyObj(user)];
+}
+
 async function getTweets(userID, username, userStream) {
 	console.log('Getting Tweets of ' + username);
 	const tweets = await getFullList('statuses/user_timeline', userID);
@@ -183,80 +262,7 @@ async function getTweets(userID, username, userStream) {
 	return tweets;
 }
 
-/**
- * Creates a new User Object and returns it and a stringified version of it. Adds the stringified user object to `notLookedAtUsers` Array.
- * @returns {User|ID} Returns an Array with two elements. The first element is the User Object, the second element is the same object stringified, with an ending ',', ready for writing into a file.
- * @param {?TwitterUserObj} userObj User Object, that can be retrieved from Twitter's API or `null`. If `null`, `userID` and `username` may not be omitted.
- * @param {Boolean} [lookedAt=false] Indicates whether the user was looked at in the `getDataOfUser` function. Defaults to `false`.
- */
-function createUser(userObj = null, userID = userObj.id_str, username = userObj.screen_name, lookedAt = false) {
-	const user = { id: userID, name: username };
-	if (lookedAt) user.to_look = USERS_LOOK.LOOKED_AT;
-	else user.to_look = USERS_LOOK.TO_LOOK;
-	if (userObj) {
-		user.bioURL = userObj.url;
-		user.desc = userObj.description;
-		user.created_at = userObj.created_at;
-		user.friends_count = userObj.friends_count;
-		user.followers_count = userObj.followers_count;
-		user.tweets_counts = userObj.statuses_count;
-		user.favourites_count = userObj.favourites_count;
-		// Check different cases for `to_look`:
-		if (!lookedAt) {
-			if (user.statuses_count <= TWEETS_MIN) {
-				user.to_look = USERS_LOOK.INACTIVE;
-				statistics.userNums.inactive++;
-			} else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) {
-				user.to_look = USERS_LOOK.TOO_BIG;
-				statistics.userNums.tooBig++;
-			}
-		}
-	}
-	if (!users.has(userID)) notLookedAtUsers.set(userID, { name: username, to_look: user.to_look });
-	return [user, stringifyObj(user)];
-}
-
-/**
- * Adds Users indicated by their IDs from endlessly many arrays via `addUsers`.
- * @param  {...Array<ID>} args Arrays of User IDs
- */
-async function addAllUsers(...args) {
-	for (let i = 0; i < args.length; i++) {
-		await addUsers(args[i]);
-	}
-	return args;
-}
-
-/**
- * Goes through Arrays of UserIDs, checking if the User has been stored in `users` yet. If not, it will asynchronously request boilerplate data of that User from the Twitter API. Users are added to `usersToLookAt`, if `toLookAt` is true.
- * @async
- * @param  {ID[]} arr An Array containing user IDs
- */
-async function addUsers(arr) {
-	let newUsers = [];
-	console.log(`Adding ${arr.length} Users`);
-	for (let i = 0; i < arr.length; i++) {
-		let id = arr[i];
-		if (!id) continue;
-		id = String(id);
-		if (!users.has(id)) newUsers.push(id);
-	}
-	let stringifiedArr = '';
-	for (let i = 0, len = newUsers.length; i < len; i++) {
-		const temp = newUsers.shift();
-		if (temp) {
-			stringifiedArr += temp;
-			if (i % 99 !== 0 || i !== len - 1) {
-				stringifiedArr += ',';
-				continue;
-			}
-		} else if (temp === false) statistics.userNums.protected++;
-
-		let resArr = await twitterReq('users/lookup', { user_id: stringifiedArr }, 'user_id_list');
-		for (let j = 0; j < resArr.length; j++) createUser(resArr[j]);
-		stringifiedArr = '';
-	}
-}
+// Unhandled Errors
 
 process.on('unhandledRejection', (err) => {
 	console.log('Unhandled Promise Rejection:', err);
