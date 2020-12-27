@@ -1,6 +1,5 @@
-const readline = require('readline');
 const { getObjVal } = require('./objectHelper');
-const { waitingPercent } = require('./terminal');
+const terminal = require('./terminal');
 const Twitter = require('twitter');
 const client = new Twitter({
 	// For Authentication
@@ -11,7 +10,7 @@ const client = new Twitter({
 	bearer_token: process.env.BEARER_TOKEN,
 });
 /** Amount of maximum response objects by Twitter for `cursor` Requests */
-const COUNT = 1000;
+const COUNT = 5000;
 const { reqNums } = require('./../index');
 
 module.exports = {
@@ -81,7 +80,8 @@ async function getFullList(path = '', userID = null, screenName = null) {
 	params = setParamsID(params, userID, screenName);
 	console.log({ path });
 
-	let arr = await twitterReq(path, params, 'max_id');
+	let arr = await twitterReq(path, params, 'single');
+	if (!arr) return arr;
 	arr = sortHelper(arr, 'id_str');
 	params.max_id = getMaxID(arr, 'id_str');
 	while (true) {
@@ -123,7 +123,7 @@ async function twitterReq(path, params, funcName) {
 			reqNums.all++;
 			reqNums.allWithoutRateLimit++;
 			if (err) {
-				console.log({ path, params, err });
+				console.log({ funcName, path, params, err });
 				let errCode = null;
 				if (Array.isArray(err) && err[0].hasOwnProperty('code')) errCode = err[0].code;
 				resolve(await reqErrHandling(funcName, path, params, res.statusCode, errCode));
@@ -167,7 +167,7 @@ async function reqErrHandling(funcName = '', path = null, params = null, resStat
 			return await twitterReq(path, params, 'cursor');
 
 		case 'max_id':
-			return;
+			return false;
 
 		case 'user_id_list':
 			const idsArr = params.user_id.split(','),
@@ -195,11 +195,9 @@ function unhandledErr(path, funcName) {
 async function rateLimited() {
 	console.log("Rate Limit - don't panic, we can do this... I hope");
 	const time = 15 * 60 * 1000;
-	const intervalID = waitingPercent(0, waitAnimCB, time, process.hrtime());
+	terminal.waitingPercent(waitAnimCB, [time, process.hrtime()]);
 	return new Promise((resolve, reject) => {
 		setTimeout(() => {
-			clearInterval(intervalID);
-			readline.clearLine(process.stdout);
 			resolve();
 		}, time);
 		// 15 minutes is default window for rate limits
@@ -209,7 +207,7 @@ async function rateLimited() {
 /**
  * Returns a number in percentages, which indicates how much time has been waited of the total already.
  *
- * Use as Callback function for `waitingPercent()`
+ * Use as Callback function for `terminal.waitingPercent()`
  * @param {number} total Total amount of ms, that are to be waited
  * @param {*} t Initial result of `process.hrtime()`
  */
