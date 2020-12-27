@@ -22,8 +22,8 @@ function getJSONData(path = '', keys = null, seperator = ',') {
  * Synchronously write a JSON-File at given location relative to Root Directory.
  *
  * @param {Array | Object | Map | Set} data JS Object/Array, that can be parsed to a JSON Object/Array.
- * @param {string} [fname=''] Filename of created File. Defaults to an empty string.
- * @param {string} [path='./'] Path to directory to store the File in. Defaults to root directory `'./'`
+ * @param {?string} [fname=''] Filename of created File. Defaults to an empty string.
+ * @param {?string} [path='./'] Path to directory to store the File in. Defaults to root directory `'./'`
  * @param {boolean} [replace=true] Indicates whether an already existing file with the same name should be replaced or not. Defaults to `true`.
  * @param {?string[]} [params=null] Further strings, that should be appended to the Filename (e.g. Date, etc.) to differentiate from other files with the same `fname`.
  */
@@ -31,21 +31,33 @@ function writeJSON(data, fname = '', path = './', replace = true, params = null)
 	let filepath = getFPath(fname, path, replace, params, 'json');
 	if (data instanceof Map) data = mapToObj(data);
 	else if (data instanceof Set) data = Array.from(data);
-	fs.writeFileSync(filepath, JSON.stringify(data, null, '	'));
+	fs.writeFileSync(filepath, JSON.stringify(data, null, '\t'));
 }
 
 /**
  * Creates a valid Filepath and returns it. This functions doesn't create a File. This function is meant as a Helper for functions like `writeFile`.
- * @param {string} name Filename
- * @param {string} [path=''] Path to store file, relative to Root Directory
+ * @param {?string} fname Filename
+ * @param {?string} [path=''] Path to store file, relative to Root Directory
  * @param {boolean} [replace=true] Indicates whether an already existing file with the same name should be replaced or not
  * @param {?string[]} [params=[]] Further strings, that should be appended to the Filename (e.g.Date, etc.) to differentiate from other files with the same `fname`.
  * @param {string} [type='json'] Type extension of File.
  * @returns {string} Absolute Filepath
  */
-function getFPath(name, path = '', replace = true, params = null, type = 'json') {
-	path = `${path === '' ? __dirname : path + '/'}`;
-	let fname = `${name}`;
+function getFPath(fname, path = './', replace = true, params = null, type = 'json') {
+	function pathNameHelper(arr) {
+		path = '';
+		for (let i = 0; i < arr.length; i++) {
+			if (i < fname.length - 1) path += arr[i] + '/';
+			else fname = arr[i];
+		}
+	}
+
+	if (path === null) pathNameHelper(fname.split('/'));
+	else if (fname === null) pathNameHelper(path.split('/'));
+
+	// If Path === '', path = './'; else if path ends with '/', path = path; else path = path + '/'
+	path = `${path === '' ? './' : path.split('')[path.length - 1] === '/' ? path : path + '/'}`;
+
 	if (params !== null) {
 		for (let i = 0, len = params.length; i < len; i++) {
 			fname += `_${params[i]}`;
