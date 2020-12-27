@@ -46,9 +46,12 @@ function getObjVal(obj, keys = [], val = null, seperator = ',', returnObj = fals
  * Stringifies a JS Object/Array/Map/Set and returns it.
  * @param {Object | Array | Map | Set} obj Any JS Object, Array or even Set or Map
  * @param {Boolean} addComma Indicates whether or not a comma should be added to the stringified Object
+ * @param {Boolean} beautify Indicates whether to beautify the string (adding tabs and newlines). Defaults to `true`.
  */
-function stringifyObj(obj = {}, addComma = true) {
-	let stringifiedObj = JSON.stringify(obj);
+function stringifyObj(obj = {}, addComma = true, beautify = true) {
+	let stringifiedObj;
+	if (beautify) stringifiedObj = JSON.stringify(obj, null, '\t');
+	else stringifiedObj = JSON.stringify(obj);
 	if (addComma) stringifiedObj = stringHelper.replaceAt(stringifiedObj, -1, '},');
 	return stringifiedObj;
 }
