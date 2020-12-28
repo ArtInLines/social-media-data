@@ -16,9 +16,9 @@ const { getCursoredList, getFullList, twitterReq } = require('./util/twitterReq'
 const { writeJSON, createDir } = require('./util/fsHelper');
 const stringHelper = require('./util/stringHelper');
 const { stringifyObj } = require('./util/objectHelper');
-const { logMemory } = require('./util/terminal');
+const terminal = require('./util/terminal');
 
-const TWITTER_ACCOUNTS = /* ['OwlbearStanAcct']; */ /* ['SphereVexi']; */ /* ['Lord_Plaga']; */ process.env.TWITTER_ACCOUNTS.split(',');
+const TWITTER_ACCOUNTS = /* ['SphereVexi']; */ /* ['Lord_Plaga']; */ process.env.TWITTER_ACCOUNTS.split(',');
 const USERS_LOOK = {
 	LOOKED_AT: process.env.USERS_LOOK_LOOKED_AT,
 	IGNORE: process.env.USERS_LOOK_IGNORE,
@@ -27,11 +27,12 @@ const USERS_LOOK = {
 	TO_LOOK: process.env.USERS_LOOK_TO_LOOK,
 	PROTECTED: process.env.USERS_LOOK_PROTECTED,
 };
-const TWEETS_MIN = process.env.TWEETS_MIN;
-const FOLLOWERS_MAX = process.env.FOLLOWERS_MAX;
-const FRIENDS_MAX = process.env.FRIENDS_MAX;
+const TWEETS_MIN = Number(process.env.TWEETS_MIN);
+const FOLLOWERS_MAX = Number(process.env.FOLLOWERS_MAX);
+const FRIENDS_MAX = Number(process.env.FRIENDS_MAX);
 const dataDir = process.env.DATA_DIR;
-const lookedAtUsersPath = `${dataDir}/lookedAtUsers.json`;
+const lookedAtUsersPath = `${dataDir}/lookedAtUsers.json`,
+	notLookedAtUsersPath = `${dataDir}/notLookedAtUsers.json`;
 /**
  * Returns Directory Path for specified User.
  * @param {String} username screen_name of Twitter User.
@@ -67,20 +68,21 @@ async function main() {
 
 	usersStream.end('}');
 	console.log('Done with getting user data');
-	logMemory();
+	terminal.logMemory();
 	statistics.userNums.lookedAt = users.size;
 	statistics.userNums.all = users.size + notLookedAtUsers.size;
+	console.log({ statistics });
+	writeJSON(statistics, 'statistics', dataDir);
 
 	const fileContents = stringHelper.replaceAt(await readFile(`${lookedAtUsersPath}`, { encoding: 'utf-8' }), -2, '');
 	fs.writeFileSync(lookedAtUsersPath, fileContents);
-
-	writeJSON(notLookedAtUsers, 'notLookedAtUsers', dataDir);
-	// TODO: Write File, containing all Users, by combining notLookedAtUsers & lookedAtUsers
+	writeJSON(notLookedAtUsers, notLookedAtUsersPath);
+	writeAllUsersFile();
 }
 
 async function getDataOfStartingUsers() {
 	for (let i = 0; i < TWITTER_ACCOUNTS.length; i++) {
-		const currentUser = await twitterReq('users/show', { screen_name: TWITTER_ACCOUNTS[i] });
+		const currentUser = await twitterReq('users/show', { screen_name: TWITTER_ACCOUNTS[i] }, 'single');
 		await getDataOfUser(currentUser);
 	}
 }
@@ -91,7 +93,7 @@ async function getInnerCircle() {
 	console.log('Inner Circle:', len);
 	for (let i = 0; i < len; i++) {
 		const el = usersCopy.shift();
-		if (el[1].to_look === USERS_LOOK.TO_LOOK) await getDataOfUser(null, el[0], el[1].name);
+		await getDataOfUser(await twitterReq('users/show', { user_id: el[0] }, 'single'));
 	}
 }
 
@@ -102,33 +104,43 @@ async function getInnerCircle() {
  * @param {String} [username] User Name of `currentUser`
  */
 async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, userID = currentUser.id_str, username = currentUser.screen_name) {
-	logMemory();
+	terminal.logMemory();
 
 	console.log('Starting with', username);
-	createDir(userDir(username));
-	const userStream = fs.createWriteStream(`${userDir(username)}/User.json`);
+	const dir = userDir(username);
+	createDir(dir);
+	terminal.write(dir); // For debugging purposes
+	await new Promise((resolve, reject) => setTimeout(resolve(), 100)); // Try out if giving more time to create the directory gets rid of the problem of the program crashing because the file can't be found yet.
+	const userStream = fs.createWriteStream(`${dir}/User.json`);
+	terminal.write('Created User Stream with path ' + dir); // For debugging purposes
 
-	userStream.write(createUser(currentUser, userID, username, true)[1]);
+	let user = createUser(currentUser, userID, username, true);
+	userStream.write(stringHelper.replaceAt(user[1], -2, ',', 2));
+	user = user[0];
 	notLookedAtUsers.delete(userID);
-	await getFriendsAndFollowers(userID, username, userStream); // Returns [friends[], followers[]]
-	await getTweets(userID, username, userStream); // Returns tweets[]
+	terminal.write(null, true); // For debugging purposes
+
+	if (user.to_look === USERS_LOOK.LOOKED_AT) {
+		if (user.friends_count !== 0 || user.followers_count !== 0) await getFriendsAndFollowers(userID, username, userStream); // Returns [friends[], followers[]]
+		if (user.tweets_counts !== 0) await getTweets(userID, username, userStream); // Returns tweets[] or false
+	}
 
 	// To add more to userStream, start with ','
 	userStream.end('}');
-	const fileContents = await readFile(`${userDir(username)}/User.json`, { encoding: 'utf-8' });
+	const fileContents = await readFile(`${dir}/User.json`, { encoding: 'utf-8' });
 	usersStream.write(`\n\t"${userID}":${fileContents},`);
 
-	// ADD MORE: Global Entities Object/File???
+	// ADD MORE: Global Entities Object/File??? Over Streams again.
 	// ADD MORE: Liked Posts, Retweets, Replies, etc.
 }
 
 async function getFriendsAndFollowers(userID, username, userStream) {
 	console.log('Getting Friends of ' + username);
 	const friends = await getCursoredList('friends/ids', 'ids', userID);
-	userStream.write('"friends": ' + JSON.stringify(friends) + ',');
+	userStream.write('\n\t"friends": ' + JSON.stringify(friends) + ',');
 	console.log('Getting Followers of ' + username);
 	const followers = await getCursoredList('followers/ids', 'ids', userID);
-	userStream.write('"followers": ' + JSON.stringify(followers));
+	userStream.write('\n\t"followers": ' + JSON.stringify(followers));
 	return await addAllUsers(friends, followers);
 }
 
@@ -166,16 +178,14 @@ async function addUsers(arr) {
 				stringifiedArr += ',';
 				continue;
 			}
-		} else if (temp === false) {
-			statistics.userNums.protected++;
-			continue;
-		}
+		} else if (Boolean(temp) === false) continue;
 
-		console.log(`Looking up ${i / Math.ceil(i / 99)} new Users`);
+		terminal.write(`Looked up ${i} of ${len} new Users`);
 		let resArr = await twitterReq('users/lookup', { user_id: stringifiedArr }, 'user_id_list');
 		for (let j = 0; j < resArr.length; j++) createUser(resArr[j]);
 		stringifiedArr = '';
 	}
+	terminal.write(null, true);
 }
 
 /**
@@ -188,7 +198,9 @@ function createUser(userObj = null, userID = userObj.id_str, username = userObj.
 	const user = { id: userID, name: username };
 	if (lookedAt) user.to_look = USERS_LOOK.LOOKED_AT;
 	else user.to_look = USERS_LOOK.TO_LOOK;
+
 	if (userObj) {
+		user.protected = userObj.protected;
 		user.bioURL = userObj.url;
 		user.desc = userObj.description;
 		user.created_at = userObj.created_at;
@@ -197,23 +209,30 @@ function createUser(userObj = null, userID = userObj.id_str, username = userObj.
 		user.tweets_counts = userObj.statuses_count;
 		user.favourites_count = userObj.favourites_count;
 		// Check different cases for `to_look`:
-		if (!lookedAt) {
-			if (user.statuses_count <= TWEETS_MIN) {
-				user.to_look = USERS_LOOK.INACTIVE;
-				statistics.userNums.inactive++;
-			} else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) {
-				user.to_look = USERS_LOOK.TOO_BIG;
-				statistics.userNums.tooBig++;
-			}
+		if (user.protected) {
+			user.to_look = USERS_LOOK.PROTECTED;
+			statistics.userNums.protected++;
+		} else if (user.statuses_count <= TWEETS_MIN) {
+			user.to_look = USERS_LOOK.INACTIVE;
+			statistics.userNums.inactive++;
+		} else if (user.followers_count >= FOLLOWERS_MAX || user.friends_count >= FRIENDS_MAX) {
+			user.to_look = USERS_LOOK.TOO_BIG;
+			statistics.userNums.tooBig++;
 		}
 	}
-	if (!users.has(userID)) notLookedAtUsers.set(userID, { name: username, to_look: user.to_look });
+	if (!lookedAt) notLookedAtUsers.set(userID, { name: username, to_look: user.to_look });
+	users.set(userID, { name: user.name, to_look: user.to_look });
 	return [user, stringifyObj(user)];
 }
 
 async function getTweets(userID, username, userStream) {
 	console.log('Getting Tweets of ' + username);
 	const tweets = await getFullList('statuses/user_timeline', userID);
+	if (!tweets) {
+		// Should only happen on Authorization Errors, which means the current User is `protected`.
+		users.get(userID).to_look = USERS_LOOK.PROTECTED;
+		return;
+	}
 	const entities = {
 		hashtags: {},
 		hashtags_count: 0,
@@ -223,9 +242,6 @@ async function getTweets(userID, username, userStream) {
 
 	userStream.write(',"tweets": [');
 	for (let i = 0; i < tweets.length; i++) {
-		if (i < tweets.length - 1) userStream.write(JSON.stringify(tweets[i].id_str) + ',');
-		else userStream.write(JSON.stringify(tweets[i].id_str));
-
 		tweets[i] = {
 			created_at: tweets[i].created_at,
 			id_str: tweets[i].id_str,
@@ -237,36 +253,55 @@ async function getTweets(userID, username, userStream) {
 			lang: tweets[i].lang,
 			// ADD MORE: Possibly add more, like retweet/reply statuses
 		};
+
+		if (i < tweets.length - 1) userStream.write(stringifyObj(tweets[i].id_str));
+		else userStream.write(stringifyObj(tweets[i].id_str, false));
+
 		const tweetEntities = tweets[i].entities;
+		// Getting hashtags of Tweet for Entities
 		for (let j = 0; j < tweetEntities.hashtags.length; j++) {
 			const hashtag = tweetEntities.hashtags[j].text;
 			if (!entities.hashtags.hasOwnProperty(hashtag)) entities.hashtags[hashtag] = 1;
 			else entities.hashtags[hashtag]++;
-			// DECIDE: whether hashtags_count should count several used hashtags several times
+			// DECIDE: whether hashtags_count should count several used hashtags several times. It does currently.
 			entities.hashtags_count++;
 		}
+		// Getting URLs of Tweet for entities
 		for (let j = 0; j < tweetEntities.urls.length; j++) {
 			const url = tweetEntities.urls[j].expanded_url;
-			// DECIDE: whether to keep this line, or to store tweet-urls.
-			if (url.startsWith('https://twitter.com/i/web/status/')) continue;
+			if (url.startsWith('https://twitter.com/i/web/status/')) continue; // DECIDE: whether to keep this line, or to store tweet-urls.
 			if (!entities.urls.hasOwnProperty(url)) entities.urls[url] = 1;
 			else entities.urls[url]++;
+			// DECIDE: whether urls_count should count several used urls several times. It does currently.
 			entities.urls_count++;
 		}
 	}
 	userStream.write(']');
-	userStream.write(',"entities":' + JSON.stringify(entities));
+	userStream.write(',\n\t"entities":' + stringifyObj(entities, false));
 	// TODO: Add tweets and entities to global files, without causing a memory leak or wasting an enormous of time by reading files too often.
 	writeJSON(entities, 'Entities', userDir(username));
 	writeJSON(tweets, 'Tweets', userDir(username));
 	return tweets;
 }
 
+function writeAllUsersFile() {
+	const lookedAtUsers = fs.readFileSync(lookedAtUsersPath);
+	const notLookedAtUsers = fs.readFileSync(notLookedAtUsersPath);
+	const stream = fs.createWriteStream(dataDir + '/allUsers.json');
+
+	stream.write('{');
+	stream.write('"lookedAt": ');
+	stream.write(lookedAtUsers);
+	stream.write(',\n');
+	stream.write('"notLookedAt": ');
+	stream.write(notLookedAtUsers);
+	stream.end('}');
+}
+
 // Unhandled Errors
 
 process.on('unhandledRejection', (err) => {
 	console.log('Unhandled Promise Rejection:', err);
-	if (err.errno === -3800) return;
 	process.exit(1);
 });
 
