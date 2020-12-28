@@ -1,7 +1,27 @@
 const process = require('process');
 const readline = require('readline');
 
-// TODO: waiting Function, that simply animates a little waiting animation, ithout any percentages.
+const anim = ['.', '.', '...', '.....', '.....', '  ...', '   ..', '    .', '    .', '    .', '  ...', ' ....', '.....', '.....', '...', '..', '.'];
+
+/**
+ * Sets and returns JS Interval, which iterates over an waiting animation. Setting `intervalID` to the return value of this function, to end the animation again.
+ * @param {?NodeJS.Timeout} intervalID Set this to the return value of this function, to end the animation, or set it to `null` otherwise. Defaults to `null`.
+ * @param {Number} speed Time in milisecond, by which the interval should iterate. Defaults to `60`
+ */
+function waitAnim(intervalID = null, speed = 60) {
+	if (intervalID) {
+		clearInterval(intervalID);
+		write(null, true);
+		return;
+	}
+	let i = 0;
+	const interval = setInterval(() => {
+		write(' ' + anim[i]);
+		i++;
+		if (i >= anim.length) i = 0;
+	}, speed);
+	return interval;
+}
 
 /**
  * Starts and returns a JS Interval ID, which can either be cleared manually or it will be cleared once `p >= 100`.
@@ -12,18 +32,14 @@ const readline = require('readline');
  * @param {Number} p Current Percentage to be printed to the terminal. Defaults to `0` as starting Percentage.
  * @param {Number} time Time for the interval to iterate in ms. Defaults to `1000` (1s). Every iteration, `p` is calculated again.
  */
-function waitingPercent(cb = null, args = [], p = 0, time = 1000) {
+function waitingPercent(cb = null, args = [], p = 0, time = 60) {
 	let i = 0;
 	const interval = setInterval(() => {
 		i++;
-		if (i >= 6) i = 0;
-		let text = '';
-		for (let j = 0; j < i; j++) {
-			text += '.';
-		}
+		if (i >= anim.length) i = 0;
 		if (typeof cb === 'function') p = cb.apply(null, args);
 		else if (cb === null) p++;
-		write('\t' + `${p}%` + text);
+		write('\t' + `${p}%` + anim[i]);
 		if (p >= 100) {
 			clearInterval(interval);
 			write(null, true);
@@ -56,4 +72,4 @@ function logMemory() {
 	console.log({ total_Memory: usedMemory.heapTotal, used_Memory: usedMemory.heapUsed, percentage: Math.ceil((usedMemory.heapUsed / usedMemory.heapTotal) * 100) + '%' });
 }
 
-module.exports = { waitingPercent, logMemory, write };
+module.exports = { waitingPercent, logMemory, write, waitAnim };
