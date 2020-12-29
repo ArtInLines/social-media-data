@@ -32,7 +32,7 @@ function waitAnim(intervalID = null, speed = 60) {
  * @param {Number} p Current Percentage to be printed to the terminal. Defaults to `0` as starting Percentage.
  * @param {Number} time Time for the interval to iterate in ms. Defaults to `1000` (1s). Every iteration, `p` is calculated again.
  */
-function waitingPercent(cb = null, args = [], p = 0, time = 60) {
+function waitingPercent(cb = null, args = [], p = 0, time = 100) {
 	let i = 0;
 	const interval = setInterval(() => {
 		i++;
