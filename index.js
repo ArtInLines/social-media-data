@@ -90,10 +90,25 @@ async function getDataOfStartingUsers() {
 async function getInnerCircle() {
 	const usersCopy = [...notLookedAtUsers],
 		len = usersCopy.length;
+	let error = null;
 	console.log('Inner Circle:', len);
 	for (let i = 0; i < len; i++) {
-		const el = usersCopy.shift();
-		await getDataOfUser(await twitterReq('users/show', { user_id: el[0] }, 'single'));
+		try {
+			const el = usersCopy.shift();
+			await getDataOfUser(await twitterReq('users/show', { user_id: el[0] }, 'single'));
+		} catch (err) {
+			if (err.errno === -4058) {
+				i--;
+				error = err;
+				if (!error.hasOwnProperty('amount')) error.amount = 0;
+				error.amount++;
+				fs.writeFileSync('./errorLog', JSON.stringify(error));
+				console.log({ error });
+				continue;
+			}
+			console.log('getInnerCircle(), unhandled Error:', err);
+			process.exit(1);
+		}
 	}
 }
 
@@ -110,7 +125,7 @@ async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, 
 	const dir = userDir(username);
 	createDir(dir);
 	terminal.write(dir); // For debugging purposes
-	await new Promise((resolve, reject) => setTimeout(resolve(), 100)); // Try out if giving more time to create the directory gets rid of the problem of the program crashing because the file can't be found yet.
+	// await new Promise((resolve, reject) => setTimeout(resolve(), 100)); // Try out if giving more time to create the directory gets rid of the problem of the program crashing because the file can't be found yet.
 	const userStream = fs.createWriteStream(`${dir}/User.json`);
 	terminal.write('Created User Stream with path ' + dir); // For debugging purposes
 
@@ -137,10 +152,10 @@ async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, 
 async function getFriendsAndFollowers(userID, username, userStream) {
 	console.log('Getting Friends of ' + username);
 	const friends = await getCursoredList('friends/ids', 'ids', userID);
-	userStream.write('\n\t"friends": ' + JSON.stringify(friends) + ',');
+	userStream.write('\n\t"friends": ' + JSON.stringify(friends, null, '\t') + ',');
 	console.log('Getting Followers of ' + username);
 	const followers = await getCursoredList('followers/ids', 'ids', userID);
-	userStream.write('\n\t"followers": ' + JSON.stringify(followers));
+	userStream.write('\n\t"followers": ' + JSON.stringify(followers, null, '\t'));
 	return await addAllUsers(friends, followers);
 }
 
@@ -276,8 +291,8 @@ async function getTweets(userID, username, userStream) {
 			entities.urls_count++;
 		}
 	}
-	userStream.write(']');
-	userStream.write(',\n\t"entities":' + stringifyObj(entities, false));
+	userStream.write('],');
+	userStream.write('\n\t"entities":' + stringifyObj(entities, false));
 	// TODO: Add tweets and entities to global files, without causing a memory leak or wasting an enormous of time by reading files too often.
 	writeJSON(entities, 'Entities', userDir(username));
 	writeJSON(tweets, 'Tweets', userDir(username));
