@@ -8,25 +8,43 @@ const csvDir = process.env.CSV_DIR;
 createDir(csvDir);
 const usersObj = {};
 let len;
-let MATRIX;
+let MATRIX = [];
 
-const creatingHeader = async () => {
+const creatingHeader = () => {
 	console.log('Creating Header...\n');
-	const USERS = JSON.parse(fs.readFileSync(`${process.env.DATA_DIR}/lookedAtUsers.json`, { encoding: 'utf-8', flag: 'r' }));
 
-	len = Object.keys(USERS).length + 1;
-	const MATRIXHEADER = new Array(len);
-	MATRIXHEADER[0] = null;
-	let i = 1;
-	for (let id in USERS) {
-		usersObj[USERS[id].name] = { id: id, friends: new Set(USERS[id].friends) };
-		MATRIXHEADER[i] = USERS[id].name;
-		delete USERS[id];
-		i++;
-		printProgress(i);
-	}
-	MATRIX = new Array(len);
-	MATRIX[0] = MATRIXHEADER;
+	let USERS = '';
+	const fileSize = fs.statSync(`${process.env.DATA_DIR}/lookedAtUsers.json`).size;
+	let readBytes = 0;
+	const readStream = fs.createReadStream(`${process.env.DATA_DIR}/lookedAtUsers.json`);
+	readStream.on('data', (chunk) => {
+		readBytes += chunk.length;
+		chunk = String(chunk);
+		USERS += chunk;
+		printProgress(readBytes, fileSize);
+	});
+
+	readStream.on('end', () => {
+		console.log('File completely read');
+		USERS = JSON.parse(USERS);
+
+		len = Object.keys(USERS).length + 1;
+		const MATRIXHEADER = new Array(len);
+		MATRIXHEADER[0] = null;
+		let i = 1;
+		for (let id in USERS) {
+			usersObj[USERS[id].name] = { id: id, friends: new Set(USERS[id].friends) };
+			MATRIXHEADER[i] = USERS[id].name;
+			delete USERS[id];
+			i++;
+			printProgress(i);
+		}
+		console.log({ len });
+		MATRIX = new Array(len);
+		MATRIX[0] = MATRIXHEADER;
+	});
+
+	return readStream;
 };
 
 const creatingData = () => {
@@ -66,16 +84,19 @@ const writingMatrix = () => {
 };
 
 function printProgress(current, total = len) {
+	const text = `\t${Math.ceil((current / total) * 100)}% ...`; // + ${Math.ceil((usedMemory.heapUsed / usedMemory.heapTotal) * 100)}
 	readline.clearLine(process.stdout);
-	const usedMemory = process.memoryUsage();
-	process.stdout.write(`\t${Math.ceil((current / total) * 100)}% ... ${Math.ceil((usedMemory.heapUsed / usedMemory.heapTotal) * 100)}`);
+	// const usedMemory = process.memoryUsage();
+	process.stdout.write(text);
 	readline.cursorTo(process.stdout, 0);
 }
 
-async function main() {
-	await creatingHeader();
-	creatingData();
-	writingMatrix();
+function main() {
+	const stream = creatingHeader();
+	stream.on('end', () => {
+		creatingData();
+		writingMatrix();
+	});
 }
 
 main();
