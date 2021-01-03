@@ -102,7 +102,7 @@ async function getInnerCircle() {
 				error = err;
 				if (!error.hasOwnProperty('amount')) error.amount = 0;
 				error.amount++;
-				fs.writeFileSync('./errorLog', JSON.stringify(error));
+				fs.writeFileSync('./logs/errorLog.json', JSON.stringify(error));
 				console.log({ error });
 				continue;
 			}
@@ -120,9 +120,12 @@ async function getInnerCircle() {
  */
 async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, userID = currentUser.id_str, username = currentUser.screen_name) {
 	terminal.logMemory();
+	const dir = userDir(username);
+
+	// Check if Data of User was already written in a file from one of the many, many earlier test runs of the program:
+	if (fs.existsSync(dir + '/User.json')) return await getExistingData(dir);
 
 	console.log('Starting with', username);
-	const dir = userDir(username);
 	createDir(dir);
 	terminal.write(dir); // For debugging purposes
 	// await new Promise((resolve, reject) => setTimeout(resolve(), 100)); // Try out if giving more time to create the directory gets rid of the problem of the program crashing because the file can't be found yet.
@@ -269,8 +272,8 @@ async function getTweets(userID, username, userStream) {
 			// ADD MORE: Possibly add more, like retweet/reply statuses
 		};
 
-		if (i < tweets.length - 1) userStream.write(stringifyObj(tweets[i].id_str));
-		else userStream.write(stringifyObj(tweets[i].id_str, false));
+		if (i < tweets.length - 1) userStream.write('\n\t' + tweets[i].id_str + ',');
+		else userStream.write('\n\t' + tweets[i].id_str);
 
 		const tweetEntities = tweets[i].entities;
 		// Getting hashtags of Tweet for Entities
@@ -284,7 +287,7 @@ async function getTweets(userID, username, userStream) {
 		// Getting URLs of Tweet for entities
 		for (let j = 0; j < tweetEntities.urls.length; j++) {
 			const url = tweetEntities.urls[j].expanded_url;
-			if (url.startsWith('https://twitter.com/i/web/status/')) continue; // DECIDE: whether to keep this line, or to store tweet-urls.
+			if (url.startsWith('https://twitter.com/')) continue; // DECIDE: whether to keep this line, or to store tweet-urls.
 			if (!entities.urls.hasOwnProperty(url)) entities.urls[url] = 1;
 			else entities.urls[url]++;
 			// DECIDE: whether urls_count should count several used urls several times. It does currently.
@@ -313,6 +316,62 @@ function writeAllUsersFile() {
 	stream.end('}');
 }
 
+async function getExistingData(dir) {
+	// Get Data from file
+	let data = String(fs.readFileSync(dir + '/User.json'));
+	if (typeof data !== 'string') console.log({ data });
+	try {
+		data = JSON.parse(data);
+	} catch (err) {
+		data = getExistingDataErrHandling(dir, data);
+	}
+	if (!data.hasOwnProperty('friends') && !data.hasOwnProperty('followers')) return;
+	for (let i = 0; i < data.friends.length; i++) await addUser(data.friends[0]);
+	for (let i = 0; i < data.followers.length; i++) await addUser(data.followers[0]);
+}
+
+async function addUser(id) {
+	if (!users.has(id)) {
+		let user = await twitterReq('users/show', { user_id: id }, 'single');
+		user = createUser(user)[0];
+		users.set(id, { name: user.name, to_look: user.to_look });
+	}
+}
+
+function getExistingDataErrHandling(dir, data) {
+	if (data.split(' ')[-2] === ',') data = stringHelper.replaceAt(data, -2);
+	else {
+		data = data.split('"tweets":');
+		let splitStr = data[1].split('],');
+		let tweetIDsStr = splitStr[0];
+		tweetIDsStr = tweetIDsStr.split('');
+		let tweetIDs = [],
+			currentNum = '',
+			sameNum = true;
+		for (let i = 0; i < tweetIDsStr.length; i++) {
+			if (isNaN(Number(tweetIDsStr[i]))) {
+				sameNum = false;
+				continue;
+			}
+			if (sameNum) currentNum += tweetIDsStr[i];
+			else {
+				tweetIDs.push(currentNum);
+				currentNum = tweetIDsStr[i];
+			}
+		}
+		tweetIDs.push(currentNum);
+		data = data[0];
+		for (let i = 1; i < splitStr.length; i++) data += splitStr[i];
+		data = JSON.parse(data);
+		data.tweets = tweetIDs;
+	}
+	writeJSON(data, 'User_corrected', dir);
+	return data;
+}
+
+///
+///
+///
 // Unhandled Errors
 
 process.on('unhandledRejection', (err) => {
