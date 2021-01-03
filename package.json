@@ -5,7 +5,8 @@
 	"main": "index.js",
 	"scripts": {
 		"start": "node --max-old-space-size=4096 index.js",
-		"all": "node --max-old-space-size=4096 index.js && node --max-old-space-size=4096 csvMatrix.js"
+		"all": "node --max-old-space-size=4096 index.js && node --max-old-space-size=4096 csvMatrix.js",
+		"csv": "node --max-old-space-size=4096 csvMatrix.js"
 	},
 	"author": "ArtInLines",
 	"license": "MIT",
