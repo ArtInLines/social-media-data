@@ -69,8 +69,7 @@ async function main() {
 	usersStream.end('}');
 	console.log('Done with getting user data');
 	terminal.logMemory();
-	statistics.userNums.lookedAt = users.size;
-	statistics.userNums.all = users.size + notLookedAtUsers.size;
+	statistics.userNums.all = users.size;
 	console.log({ statistics });
 	writeJSON(statistics, 'statistics', dataDir);
 
@@ -119,6 +118,7 @@ async function getInnerCircle() {
  * @param {String} [username] User Name of `currentUser`
  */
 async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, userID = currentUser.id_str, username = currentUser.screen_name) {
+	statistics.userNums.lookedAt++;
 	terminal.logMemory();
 	const dir = userDir(username);
 
@@ -140,7 +140,7 @@ async function getDataOfUser(currentUser = { id_str: null, screen_name: null }, 
 
 	if (user.to_look === USERS_LOOK.LOOKED_AT) {
 		if (user.friends_count !== 0 || user.followers_count !== 0) await getFriendsAndFollowers(userID, username, userStream); // Returns [friends[], followers[]]
-		if (user.tweets_counts !== 0) await getTweets(userID, username, userStream); // Returns tweets[] or false
+		if (user.tweets_count !== 0) await getTweets(userID, username, userStream); // Returns tweets[] or false
 	}
 
 	// To add more to userStream, start with ','
@@ -224,7 +224,7 @@ function createUser(userObj = null, userID = userObj.id_str, username = userObj.
 		user.created_at = userObj.created_at;
 		user.friends_count = userObj.friends_count;
 		user.followers_count = userObj.followers_count;
-		user.tweets_counts = userObj.statuses_count;
+		user.tweets_count = userObj.statuses_count;
 		user.favourites_count = userObj.favourites_count;
 		// Check different cases for `to_look`:
 		if (user.protected) {
