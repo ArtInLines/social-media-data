@@ -1,5 +1,5 @@
 const stringHelper = require('./stringHelper');
-module.exports = { getObjVal, addArrToMap, mapToObj, transformMap, addObjArrToObj, getObjSize, stringifyObj };
+module.exports = { getObjVal, addArrToMap, mapToObj, transformMap, addObjArrToObj, getObjSize, stringifyObj, hasProperties };
 
 /**
  * Get (and if wanted change) value of Object at position, specified by the `keys`parameter. Omit `val` or emit null, if you don't want to change any values.
@@ -121,6 +121,35 @@ function addObjArrToObj(arr, Obj, keys = null, seperator = ',') {
 	return returnArr;
 }
 
+/**
+ * @deprecated Simply use `Object.keys(obj).length`
+ */
 function getObjSize(obj) {
-	return obj.keys().length;
+	return Object.keys(obj).length;
+}
+
+/**
+ * Tests if the Object has the inputted properties and returns true or false accordingly.
+ *
+ * @param {*} obj The Object to which to check on whether it has the properties
+ * @param {Boolean | String} countAll Indicates whether the function should return false if the Object doesn't have one of the properties or only if it doesn't have any. Defaults to the former (`true`). This parameter can be omitted and the first property can be inputted instead.
+ * @param  {...String} [properties=[]] Property key strings
+ *
+ * @returns {Boolean}
+ */
+function hasProperties(obj, countAll = true, ...properties) {
+	// countAll should be omittable
+	if (typeof countAll !== 'boolean') {
+		properties.unshift(countAll);
+		countAll = true;
+	}
+
+	for (let i = 0; i < properties.length; i++) {
+		if (typeof properties[i] !== 'string') properties[i] = String(properties[i]);
+		const bool = obj.hasOwnProperty(properties[i]);
+		if (countAll && !bool) return false;
+		else if (!countAll && bool) return true;
+	}
+	if (countAll) return true;
+	else return false;
 }
