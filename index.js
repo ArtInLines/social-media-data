@@ -18,7 +18,7 @@ const stringHelper = require('./util/stringHelper');
 const { stringifyObj } = require('./util/objectHelper');
 const terminal = require('./util/terminal');
 
-const TWITTER_ACCOUNTS = /* ['SphereVexi']; */ /* ['Lord_Plaga']; */ process.env.TWITTER_ACCOUNTS.split(',');
+const TWITTER_ACCOUNTS = process.env.TWITTER_ACCOUNTS.split(',');
 const USERS_LOOK = {
 	LOOKED_AT: process.env.USERS_LOOK_LOOKED_AT,
 	IGNORE: process.env.USERS_LOOK_IGNORE,
