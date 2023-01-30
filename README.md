@@ -1,5 +1,3 @@
-# Work in Progress
-
 ## Code zum Forschungsprojekt:
 
 ## Analyse rechter Strukturen in sozialen Medien
@@ -8,7 +6,7 @@
 
 Vorliegend ist der Quellcode des Programmes, das zur Datenerhebung des Forschungsprojektes verwendet wurde.
 
-Dieses Programm ist zurzeit noch in Bearbeitung und wird ständig angepasst und erweitert. Diese Dokumentation ist ebenso noch nicht vollständig und wird in den folgenden Tagen überarbeitet.
+Dieses Programm ist funktionsfähig, aber nicht komplett fertig gestellt. Diese Dokumentation ist ebenso noch nicht vollständig. Da das Forschungsprojekt abgeschlossen wurde, ist es unwahrscheinlich, dass dieses Programm in naher Zukunft noch erweitert wird.
 
 ---
 
