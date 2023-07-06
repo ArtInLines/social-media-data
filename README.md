@@ -35,9 +35,3 @@ einen Datensatz gekürzt werden, da zwei Soziale Medien betrachtet werden, deren
 
 Twitters API bietet Daten zu einzelnen Nutzern, deren zugehörigen "Tweets" (wobei nur die neuesten ~3500 von Twitter weitergegeben werden), deren Freunde, deren Followers, sowie deren ge-likte Tweets.
 D
-
----
-
-## Instagram
-
-Die Beschreibung der Datenerhebung bei Twitter wird bald hinzugefügt.
